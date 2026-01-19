@@ -6,10 +6,10 @@ const Y = g.getHeight();
 let clockInterval, counterInterval;
 
 // UI Zone boundaries (Y coordinates as percentages)
-const ZONE_TOP_END = 0.18;      // Time strip: 0 to 18%
-const ZONE_MID_START = 0.18;   // Middle zone: 18% to 82%
-const ZONE_MID_END = 0.82;
-const ZONE_BOT_START = 0.82;   // Bottom strip: 82% to 100%
+const ZONE_TOP_END = 0.20;     // Time strip: 0 to 20%
+const ZONE_MID_START = 0.20;   // Middle zone: 20% to 80%
+const ZONE_MID_END = 0.80;
+const ZONE_BOT_START = 0.80;   // Bottom strip: 80% to 100%
 
 function getBACStatus(bac, counter) {
   // Returns color and message based on BAC level and session state
@@ -67,17 +67,16 @@ function drawUI()
   // Get BAC status (color + message)
   let status = getBACStatus(bac, data.counter);
 
-  // Draw colored background for middle zone (only if session active)
+  // Draw colored strips (top and bottom) if session active
   if (status.color) {
     g.setColor(status.color);
-    g.fillRect(0, Y * ZONE_MID_START, X, Y * ZONE_MID_END);
-    g.setColor("#000"); // Black text on colored background
+    g.fillRect(0, 0, X, Y * ZONE_TOP_END);           // Top strip
+    g.fillRect(0, Y * ZONE_BOT_START, X, Y);         // Bottom strip
   }
 
-  // Partial vertical divider (center, not full height so color connects)
-  let dividerTop = Y * (ZONE_MID_START + 0.08);
-  let dividerBot = Y * (ZONE_MID_END - 0.08);
-  g.drawLine(X * 0.5, dividerTop, X * 0.5, dividerBot);
+  // Vertical divider (center line connecting top and bottom strips)
+  g.setColor(status.color || "#fff");
+  g.fillRect(X * 0.5 - 1, 0, X * 0.5 + 1, Y);  // 3px wide, full height
 
   drawEnd(inferEnd(bac, data.bio));
 
@@ -85,21 +84,22 @@ function drawUI()
 
   // Draw counter on left side of middle zone
   g.setFontAlign(0, 0).setFont("6x8", 3);
-  g.drawString(data.counter, X * 0.28, Y * 0.50, true);
-
-  // Draw BAC on right side of middle zone
-  g.drawString(bac.toFixed(2).substring(1), X * 0.72, Y * 0.45, true);
-  g.drawString('%', X * 0.72, Y * 0.60, true);
+  g.drawString(data.counter, X * 0.25, Y * 0.40, true);
 
   // Draw beverage info below counter
   g.setFont("6x8", 1);
-  g.drawString(data.volume + "ml", X * 0.28, Y * 0.65, true);
-  g.drawString(data.ratio + "%", X * 0.28, Y * 0.73, true);
+  g.drawString(data.volume + "ml", X * 0.25, Y * 0.58, true);
+  g.drawString(data.ratio + "%", X * 0.25, Y * 0.68, true);
 
-  // Swipe-up hint chevron at bottom right of bottom strip
-  g.setFontAlign(0, 0).setFont("6x8", 2);
+  // Draw BAC on right side of middle zone
+  g.setFontAlign(0, 0).setFont("6x8", 3);
+  g.drawString(bac.toFixed(2).substring(1), X * 0.75, Y * 0.45, true);
+  g.drawString('%', X * 0.75, Y * 0.60, true);
+
+  // Swipe-up hint chevron at extreme bottom center
+  g.setFontAlign(0, 1).setFont("6x8", 2);  // Align bottom
   g.setColor("#888");
-  g.drawString("^", X * 0.85, Y * (ZONE_BOT_START + 0.09));
+  g.drawString("^", X * 0.5, Y - 2);  // At very bottom of screen
   g.reset();
 
   // Widgets removed for more screen space
@@ -111,7 +111,7 @@ function drawClock()
   g.reset();
   let time = require('locale').time(new Date(), 1);
   g.setFontAlign(0, 0).setFont("6x8", 3);
-  g.drawString(time, X * 0.5, Y * (ZONE_TOP_END / 2), true);
+  g.drawString(time, X * 0.5, Y * 0.10, true);  // Center of top strip
 }
 
 function clearCounter()
@@ -172,7 +172,7 @@ function drawEnd(timestamp)
   g.reset();
   if (timestamp > Date.now()) {
     let soberTime = require('locale').time(new Date(timestamp), 1);
-    let yPos = Y * (ZONE_BOT_START + 0.07);
+    let yPos = Y * 0.86;  // Upper part of bottom strip
     
     // Draw small clock icon (circle + hands)
     let iconX = X * 0.25;
