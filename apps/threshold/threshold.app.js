@@ -12,17 +12,18 @@ const ZONE_MID_END = 0.80;
 const ZONE_BOT_START = 0.80;   // Bottom strip: 80% to 100%
 
 function getBACStatus(bac, counter) {
-  // Returns color and message based on BAC level and session state
-  // No session started - neutral/white
-  if (counter === 0) return { color: null, msg: 'Count up a drink?' };
+  // Returns color, text color, and message based on BAC level and session state
+  // No session started - neutral (no color strips)
+  if (counter === 0) return { color: null, txt: "#fff", msg: 'Count up a drink?' };
   
   // Active session with thresholds
-  if (bac >= 0.16) return { color: "#f00", msg: "You shouldn't go on. Count another?" };
-  if (bac >= 0.08) return { color: "#f80", msg: "Be careful! Count another glass?" };
-  if (bac >= 0.04) return { color: "#ff0", msg: "Count one more drink?" };
+  // Red needs white text for contrast; others use black
+  if (bac >= 0.16) return { color: "#f00", txt: "#fff", msg: "You shouldn't go on. Count another?" };
+  if (bac >= 0.08) return { color: "#f80", txt: "#000", msg: "Be careful! Count another glass?" };
+  if (bac >= 0.04) return { color: "#ff0", txt: "#000", msg: "Count one more drink?" };
   
   // Low BAC but session active
-  return { color: "#0f0", msg: "Count up a drink?" };
+  return { color: "#0f0", txt: "#000", msg: "Count up a drink?" };
 }
 
 function save(object, key, value, file)
@@ -41,11 +42,7 @@ function drawUI()
   if (clockInterval) clearInterval(clockInterval);
   if (counterInterval) clearInterval(counterInterval);
 
-  // Display clock first, then set its refresh rate
-  drawClock();
-  clockInterval = setInterval(drawClock, 60000);
-
-  // Read data from json file
+  // Read data from json file (moved up so we can get status for clock)
   let data = Object.assign({
     bio: 1,
     height: 1.70,
@@ -55,16 +52,13 @@ function drawUI()
     ratio: 4.5,
   }, S.readJSON('threshold.json', true) || {});
 
-  // Set a regular check for the counter timeout
-  counterInterval = setInterval(clearCounter, 60000);
-
   let bac = calcBAC(
     calcABV(data.volume, data.ratio),
     data.counter,
     calcTBV(data.bio, data.height, data.weight)
   );
 
-  // Get BAC status (color + message)
+  // Get BAC status (color + text color + message)
   let status = getBACStatus(bac, data.counter);
 
   // Draw colored strips (top and bottom) if session active
@@ -78,40 +72,51 @@ function drawUI()
   g.setColor(status.color || "#fff");
   g.fillRect(X * 0.5 - 1, 0, X * 0.5 + 1, Y);  // 3px wide, full height
 
-  drawEnd(inferEnd(bac, data.bio));
+  // Display clock in top strip, then set its refresh rate
+  drawClock(status.txt);
+  clockInterval = setInterval(() => drawClock(status.txt), 60000);
+
+  // Set a regular check for the counter timeout
+  counterInterval = setInterval(clearCounter, 60000);
+
+  // Draw sober time in bottom strip
+  drawEnd(inferEnd(bac, data.bio), status.txt);
 
   waitPrompt(status.msg);
 
-  // Draw counter on left side of middle zone
-  g.setFontAlign(0, 0).setFont("6x8", 3);
-  g.drawString(data.counter, X * 0.25, Y * 0.40, true);
+  // Draw counter on left side of middle zone (use Vector font for clarity)
+  g.setColor("#fff");
+  g.setFontAlign(0, 0).setFont("Vector", 40);
+  g.drawString(data.counter, X * 0.25, Y * 0.40);
 
   // Draw beverage info below counter
-  g.setFont("6x8", 1);
-  g.drawString(data.volume + "ml", X * 0.25, Y * 0.58, true);
-  g.drawString(data.ratio + "%", X * 0.25, Y * 0.68, true);
+  g.setFont("6x8", 2);
+  g.drawString(data.volume + "ml", X * 0.25, Y * 0.58);
+  g.drawString(data.ratio + "%", X * 0.25, Y * 0.68);
 
   // Draw BAC on right side of middle zone
-  g.setFontAlign(0, 0).setFont("6x8", 3);
-  g.drawString(bac.toFixed(2).substring(1), X * 0.75, Y * 0.45, true);
-  g.drawString('%', X * 0.75, Y * 0.60, true);
+  g.setFontAlign(0, 0).setFont("Vector", 36);
+  g.drawString(bac.toFixed(2).substring(1), X * 0.75, Y * 0.42);
+  g.setFont("Vector", 20);
+  g.drawString('%', X * 0.75, Y * 0.62);
 
   // Swipe-up hint chevron at extreme bottom center
-  g.setFontAlign(0, 1).setFont("6x8", 2);  // Align bottom
-  g.setColor("#888");
+  g.setFontAlign(0, 1);  // Align bottom
+  g.setColor(status.txt || "#888");
+  g.setFont("6x8", 2);
   g.drawString("^", X * 0.5, Y - 2);  // At very bottom of screen
   g.reset();
 
   // Widgets removed for more screen space
 }
 
-function drawClock()
+function drawClock(txtColor)
 // Draw current time in top strip
 {
-  g.reset();
+  g.setColor(txtColor || "#fff");
   let time = require('locale').time(new Date(), 1);
-  g.setFontAlign(0, 0).setFont("6x8", 3);
-  g.drawString(time, X * 0.5, Y * 0.10, true);  // Center of top strip
+  g.setFontAlign(0, 0).setFont("Vector", 28);
+  g.drawString(time, X * 0.5, Y * 0.10);  // Center of top strip
 }
 
 function clearCounter()
@@ -166,11 +171,11 @@ function inferEnd(bac, isMale)
   return endTime;
 }
 
-function drawEnd(timestamp)
+function drawEnd(timestamp, txtColor)
 // Display the approximate sober time in bottom strip with clock icon
 {
-  g.reset();
   if (timestamp > Date.now()) {
+    g.setColor(txtColor || "#fff");
     let soberTime = require('locale').time(new Date(timestamp), 1);
     let yPos = Y * 0.86;  // Upper part of bottom strip
     
@@ -182,8 +187,8 @@ function drawEnd(timestamp)
     g.drawLine(iconX, yPos, iconX + 3, yPos + 2);  // Minute hand
     
     // Draw sober time next to icon
-    g.setFontAlign(0, 0).setFont("6x8", 2);
-    g.drawString(soberTime, X * 0.55, yPos, true);
+    g.setFontAlign(0, 0).setFont("Vector", 20);
+    g.drawString(soberTime, X * 0.55, yPos);
   }
 }
 
